@@ -1,16 +1,35 @@
 import MapboxDirections
 import MapboxCoreNavigation
 
-/// :nodoc:
+/**
+ A view controller that displays the current maneuver instruction as a “card” resembling a user notification. A subsequent maneuver is always partially visible on one side of the view; swiping to one side reveals the full maneuver.
+ 
+ This class is an alternative to the more traditional banner interface provided by the `TopBannerViewController` class. To use `InstructionsCardViewController`, create an instance of it and pass it into the `NavigationOptions(styles:navigationService:voiceController:topBanner:bottomBanner:)` method.
+ */
 open class InstructionsCardViewController: UIViewController {
     typealias InstructionsCardCollectionLayout = UICollectionViewFlowLayout
     
     public var routeProgress: RouteProgress?
-    var cardSize: CGSize = .zero
-    public var cardStyle: DayInstructionsCardStyle = DayInstructionsCardStyle()
+    var cardSize: CGSize {
+        var cardSize = CGSize(width: Int(floor(UIScreen.main.bounds.width * 0.8)), height: 140)
+        
+        /* TODO: Identify the traitCollections to define the width of the cards */
+        if let customSize = cardCollectionDelegate?.instructionsCardCollection(self, cardSizeFor: traitCollection) {
+            cardSize = customSize
+        }
+        
+        return cardSize
+    }
     
     var instructionCollectionView: UICollectionView!
     var instructionsCardLayout: InstructionsCardCollectionLayout!
+    
+    lazy var junctionView: JunctionView = {
+        let view: JunctionView = .forAutoLayout()
+        view.isHidden = true
+        view.applyDefaultCornerRadiusShadow(cornerRadius: 4, shadowOpacity: 0.4)
+        return view
+    }()
     
     public private(set) var isInPreview = false
     public var currentStepIndex: Int?
@@ -56,42 +75,25 @@ open class InstructionsCardViewController: UIViewController {
     
     fileprivate var contentOffsetBeforeSwipe = CGPoint(x: 0, y: 0)
     fileprivate var indexBeforeSwipe = IndexPath(row: 0, section: 0)
-    fileprivate var isSnapAndRemove = false
-    public let cardCollectionCellIdentifier = "InstructionsCardCollectionCellID"
-    fileprivate let collectionViewFlowLayoutMinimumSpacingDefault: CGFloat = 10.0
-    fileprivate let collectionViewPadding: CGFloat = 8.0
-    
-    lazy open var topPaddingView: TopBannerView =  {
-        let view: TopBannerView = .forAutoLayout()
-        return view
-    }()
+    fileprivate let cardCollectionCellIdentifier = NSStringFromClass(InstructionsCardCell.self)
     
     override open func viewDidLoad() {
         super.viewDidLoad()
-        
-        /* TODO: Identify the traitCollections to define the width of the cards */
-        if let customSize = cardCollectionDelegate?.instructionsCardCollection(self, cardSizeFor: traitCollection) {
-            cardSize = customSize
-        } else {
-            cardSize = CGSize(width: Int(floor(view.frame.size.width * 0.82)), height: 200)
-        }
         
         /* TODO: Custom dataSource */
         
         view.backgroundColor = .clear
         view.translatesAutoresizingMaskIntoConstraints = false
+        view.clipsToBounds = false
         
         instructionsCardLayout = InstructionsCardCollectionLayout()
         instructionsCardLayout.scrollDirection = .horizontal
-        instructionsCardLayout.itemSize = cardSize
-        
         instructionCollectionView = UICollectionView(frame: .zero, collectionViewLayout: instructionsCardLayout)
         instructionCollectionView.register(InstructionsCardCell.self, forCellWithReuseIdentifier: cardCollectionCellIdentifier)
-        instructionCollectionView.contentInset = UIEdgeInsets(top: 0, left: collectionViewPadding, bottom: 0, right: collectionViewPadding)
-        instructionCollectionView.contentOffset = CGPoint(x: -collectionViewPadding, y: 0.0)
+        instructionCollectionView.contentOffset = CGPoint(x: -5.0, y: 0.0)
+        instructionCollectionView.contentInset = UIEdgeInsets(top: 5.0, left: 5.0, bottom: 5.0, right: 5.0)
         instructionCollectionView.dataSource = self
         instructionCollectionView.delegate = self
-        
         instructionCollectionView.showsVerticalScrollIndicator = false
         instructionCollectionView.showsHorizontalScrollIndicator = false
         instructionCollectionView.backgroundColor = .clear
@@ -100,27 +102,34 @@ open class InstructionsCardViewController: UIViewController {
         
         addSubviews()
         setConstraints()
-        
-        view.clipsToBounds = false
-        topPaddingView.backgroundColor = .clear
+        addObservers()
+    }
+    
+    deinit {
+        removeObservers()
+    }
+    
+    // MARK: - Notification observer methods
+    
+    func addObservers() {
+        NotificationCenter.default.addObserver(self, selector: #selector(orientationDidChange(_:)), name: UIDevice.orientationDidChangeNotification, object: nil)
+    }
+    
+    func removeObservers() {
+        NotificationCenter.default.removeObserver(self, name: UIDevice.orientationDidChangeNotification, object: nil)
+    }
+    
+    @objc func orientationDidChange(_ notification: Notification) {
+        instructionsCardLayout.invalidateLayout()
     }
     
     func addSubviews() {
-        [topPaddingView, instructionCollectionView].forEach(view.addSubview(_:))
+        [instructionCollectionView, junctionView].forEach(view.addSubview(_:))
     }
     
     func setConstraints() {
-        let topPaddingConstraints: [NSLayoutConstraint] = [
-            topPaddingView.topAnchor.constraint(equalTo: view.topAnchor),
-            topPaddingView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            topPaddingView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            topPaddingView.bottomAnchor.constraint(equalTo: view.safeTopAnchor),
-        ]
-        
-        NSLayoutConstraint.activate(topPaddingConstraints)
-        
         let instructionCollectionViewContraints: [NSLayoutConstraint] = [
-            instructionCollectionView.topAnchor.constraint(equalTo: topPaddingView.bottomAnchor),
+            instructionCollectionView.topAnchor.constraint(equalTo: view.safeTopAnchor, constant: 5.0),
             instructionCollectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             instructionCollectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             instructionCollectionView.heightAnchor.constraint(equalToConstant: cardSize.height),
@@ -128,6 +137,15 @@ open class InstructionsCardViewController: UIViewController {
         ]
         
         NSLayoutConstraint.activate(instructionCollectionViewContraints)
+        
+        let junctionViewConstraints: [NSLayoutConstraint] = [
+            junctionView.topAnchor.constraint(equalTo: instructionCollectionView.bottomAnchor),
+            junctionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            junctionView.widthAnchor.constraint(equalToConstant: cardSize.width),
+            junctionView.heightAnchor.constraint(equalTo: junctionView.widthAnchor, multiplier: 0.6) // aspect ratio fit
+        ]
+        
+        NSLayoutConstraint.activate(junctionViewConstraints)
     }
     
     open func reloadDataSource() {
@@ -177,17 +195,12 @@ open class InstructionsCardViewController: UIViewController {
         return cell.subviews[1] as? InstructionsCardContainerView
     }
     
-    fileprivate func calculateNeededSpace(count: Int) -> CGSize {
-        let cardSize = instructionsCardLayout.itemSize
-        return CGSize(width: (cardSize.width + 10) * CGFloat(count), height: cardSize.height)
-    }
-    
     fileprivate func snappedIndexPath() -> IndexPath {
         guard let collectionView = instructionsCardLayout.collectionView, let itemCount = steps?.count else {
             return IndexPath(row: 0, section: 0)
         }
         
-        let estimatedIndex = Int(round((collectionView.contentOffset.x + collectionView.contentInset.left) / (cardSize.width + collectionViewFlowLayoutMinimumSpacingDefault)))
+        let estimatedIndex = Int(round((collectionView.contentOffset.x + collectionView.contentInset.left) / (cardSize.width + 10.0)))
         let indexInBounds = max(0, min(itemCount - 1, estimatedIndex))
         
         return IndexPath(row: indexInBounds, section: 0)
@@ -225,7 +238,6 @@ open class InstructionsCardViewController: UIViewController {
     }
 }
 
-/// :nodoc:
 extension InstructionsCardViewController: UICollectionViewDelegate {
     public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
         indexBeforeSwipe = snappedIndexPath()
@@ -247,7 +259,6 @@ extension InstructionsCardViewController: UICollectionViewDelegate {
     }
 }
 
-/// :nodoc:
 extension InstructionsCardViewController: UICollectionViewDataSource {
     public func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         return steps?.count ?? 0
@@ -260,7 +271,6 @@ extension InstructionsCardViewController: UICollectionViewDataSource {
             return cell
         }
         
-        cell.style = cardStyle
         cell.container.delegate = self
         
         let step = steps[indexPath.row]
@@ -272,14 +282,12 @@ extension InstructionsCardViewController: UICollectionViewDataSource {
     }
 }
 
-/// :nodoc:
 extension InstructionsCardViewController: UICollectionViewDelegateFlowLayout {
     public func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         return cardSize
     }
 }
 
-/// :nodoc:
 extension InstructionsCardViewController: NavigationComponent {
     public func navigationService(_ service: NavigationService, didUpdate progress: RouteProgress, with location: CLLocation, rawLocation: CLLocation) {
         routeProgress = progress
@@ -288,6 +296,7 @@ extension InstructionsCardViewController: NavigationComponent {
     
     public func navigationService(_ service: NavigationService, didPassVisualInstructionPoint instruction: VisualInstructionBanner, routeProgress: RouteProgress) {
         self.routeProgress = routeProgress
+        junctionView.update(for: instruction, service: service)
         reloadDataSource()
     }
     
@@ -298,7 +307,6 @@ extension InstructionsCardViewController: NavigationComponent {
     }
 }
 
-/// :nodoc:
 extension InstructionsCardViewController: InstructionsCardContainerViewDelegate {
     public func primaryLabel(_ primaryLabel: InstructionLabel, willPresent instruction: VisualInstruction, as presented: NSAttributedString) -> NSAttributedString? {
         return cardCollectionDelegate?.primaryLabel(primaryLabel, willPresent: instruction, as: presented)
@@ -309,7 +317,6 @@ extension InstructionsCardViewController: InstructionsCardContainerViewDelegate 
     }
 }
 
-/// :nodoc:
 extension InstructionsCardViewController: NavigationMapInteractionObserver {
     public func navigationViewController(didCenterOn location: CLLocation) {
         stopPreview()

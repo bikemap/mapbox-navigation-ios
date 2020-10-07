@@ -4,7 +4,7 @@ title: "Navigation SDK for iOS"
 author_url: https://docs.mapbox.com/ios/navigation/
 github_url: https://github.com/mapbox/mapbox-navigation-ios
 dash_url: https://docs.mapbox.com/ios/docsets/MapboxNavigation.xml
-copyright: '© 2014–2019 [Mapbox](https://www.mapbox.com/). See [license](https://github.com/mapbox/mapbox-navigation-ios/blob/master/LICENSE.md) for more details.'
+copyright: '© 2014–2020 [Mapbox](https://www.mapbox.com/). See [license](https://github.com/mapbox/mapbox-navigation-ios/blob/master/LICENSE.md) for more details.'
 
 head: |
   <link rel='shortcut icon' href='https://www.mapbox.com/img/favicon.ico' type='image/x-icon' />
@@ -22,8 +22,14 @@ custom_categories:
       - NavigationViewController
       - NavigationViewControllerDelegate
       - RouteVoiceController
-      - VoiceControllerDelegate
-      - MapboxVoiceController
+      - SpeechSynthesizing
+      - SpeechSynthesizingDelegate
+      - MapboxSpeechSynthesizer
+      - SystemSpeechSynthesizer
+      - MultiplexedSpeechSynthesizer
+      - SpeechError
+      - SpeechFailureAction
+      - SpokenInstructionErrorCode
       - NavigationOptions
       - NavigationView
   - name: Core Navigation Logic
@@ -37,21 +43,40 @@ custom_categories:
       - RouterDelegate
       - RouteProgress
       - RouteLegProgress
+      - RouteStep
       - RouteStepProgress
+      - CongestionLevel
+      - VisualInstruction
+      - VisualInstructionDelegate
       - NavigationEventsManager
       - EventsManagerDataSource
       - NavigationLocationManager
       - ReplayLocationManager
       - SimulatedLocationManager
       - NavigationRouteOptions
+      - RouteOptions
       - NavigationMatchOptions
-      - NavigationDirections
       - SimulationMode
+      - PassiveLocationDataSource
   - name: Maps
     children:
       - NavigationMapView
       - NavigationMapViewDelegate
+      - NavigationMapViewCourseTrackingDelegate
       - MGLMapView
+      - MGLAccountManager
+      - MGLMultiPolygonFeature
+      - MGLMultiPolyline
+      - MGLMultiPolylineFeature
+      - MGLPointAnnotation
+      - MGLPointFeature
+      - MGLPolygon
+      - MGLPolygonFeature
+      - MGLPolyline
+      - MGLPolylineFeature
+      - MGLStyle
+      - PassiveLocationManager
+      - WaypointStyle
   - name: Styling
     children:
       - Style
@@ -65,14 +90,22 @@ custom_categories:
       - DistanceFormatter
   - name: UI Components
     children:
-      - ManeuverView
       - BottomBannerViewController
       - BottomBannerViewControllerDelegate
       - SpeedLimitView
       - UserPuckCourseView
       - CourseUpdatable
-      - GenericRouteShield
       - NavigationComponent
+  - name: Guidance Instruction UI
+    children:
+      - TopBannerViewController
+      - InstructionsCardViewController
+      - InstructionsCardContainerView
+      - InstructionsCardContainerViewDelegate
+      - InstructionsBannerViewDelegate
+      - ManeuverView
+      - JunctionView
+      - GenericRouteShield
   - name: CarPlay
     children:
       - CarPlayManager
@@ -112,3 +145,17 @@ custom_categories:
       - RouteSnappingMinimumHorizontalAccuracy
       - RouteSnappingMinimumSpeed
       - NavigationSettings
+  - name: User Feedback
+    children:
+      - FeedbackViewController
+      - FeedbackSubtypeViewController
+      - FeedbackViewControllerDelegate
+      - FeedbackItem
+      - FeedbackType
+      - IncorrectVisualSubtype
+      - ConfusingAudioSubtype
+      - RouteQualitySubtype
+      - IllegalRouteSubtype
+      - RoadClosureSubtype
+      - FeedbackSource
+      - EndOfRouteFeedback

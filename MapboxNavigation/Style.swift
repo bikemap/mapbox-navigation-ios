@@ -33,12 +33,14 @@ open class Style: NSObject {
     /**
      URL of the style to display on the map during turn-by-turn navigation.
      */
-    @objc open var mapStyleURL: URL = MGLStyle.navigationGuidanceDayStyleURL
+    @objc open var mapStyleURL: URL = MGLStyle.navigationDayStyleURL
     
     /**
      URL of the style to display on the map when previewing a route, for example on CarPlay or your own route preview map.
+     
+     Defaults to same style as `mapStyleURL`.
      */
-    @objc open var previewMapStyleURL: URL = MGLStyle.navigationPreviewDayStyleURL
+    @objc open var previewMapStyleURL: URL = MGLStyle.navigationDayStyleURL
     
     /**
      Applies the style for all changed properties.
@@ -216,28 +218,37 @@ open class StepListIndicatorView: UIView {
 open class StylableLabel: UILabel {
     // Workaround the fact that UILabel properties are not marked with UI_APPEARANCE_SELECTOR
     @objc dynamic open var normalTextColor: UIColor = .black {
-        didSet {
-            textColor = normalTextColor
-        }
+        didSet { update() }
     }
     
     @objc dynamic open var normalFont: UIFont = .systemFont(ofSize: 16) {
-        didSet {
-            font = normalFont
-        }
+        didSet { update() }
+    }
+
+    @objc dynamic public var textColorHighlighted: UIColor = #colorLiteral(red: 1, green: 1, blue: 1, alpha: 1) {
+        didSet { update() }
+    }
+
+    @objc public var showHighlightedTextColor: Bool = false {
+        didSet { update() }
+    }
+
+    open func update() {
+        textColor = showHighlightedTextColor ? textColorHighlighted : normalTextColor
+        font = normalFont
     }
 }
 
 /// :nodoc:
 @objc(MBStylableView)
 open class StylableView: UIView {
-    @objc dynamic var borderWidth: CGFloat = 0.0 {
+    @objc dynamic public var borderWidth: CGFloat = 0.0 {
         didSet {
             layer.borderWidth = borderWidth
         }
     }
     
-    @objc dynamic var cornerRadius: CGFloat = 0.0 {
+    @objc dynamic public var cornerRadius: CGFloat = 0.0 {
         didSet {
             layer.cornerRadius = cornerRadius
         }
@@ -274,6 +285,12 @@ open class DistanceLabel: StylableLabel {
     @objc dynamic public var unitTextColor: UIColor = #colorLiteral(red: 0.6274509804, green: 0.6274509804, blue: 0.6274509804, alpha: 1) {
         didSet { update() }
     }
+    @objc dynamic public var valueTextColorHighlighted: UIColor = #colorLiteral(red: 1, green: 1, blue: 1, alpha: 1) {
+        didSet { update() }
+    }
+    @objc dynamic public var unitTextColorHighlighted: UIColor = #colorLiteral(red: 1, green: 1, blue: 1, alpha: 1) {
+        didSet { update() }
+    }
     @objc dynamic public var valueFont: UIFont = UIFont.systemFont(ofSize: 16, weight: .medium) {
         didSet { update() }
     }
@@ -293,7 +310,7 @@ open class DistanceLabel: StylableLabel {
         }
     }
     
-    fileprivate func update() {
+    open override func update() {
         guard let attributedDistanceString = attributedDistanceString else {
             return
         }
@@ -306,11 +323,11 @@ open class DistanceLabel: StylableLabel {
             let foregroundColor: UIColor
             let font: UIFont
             if let _ = emphasizedDistanceString.attribute(.quantity, at: range.location, effectiveRange: nil) {
-                foregroundColor = valueTextColor
+                foregroundColor = showHighlightedTextColor ? valueTextColorHighlighted : valueTextColor
                 font = valueFont
                 hasQuantity = true
             } else {
-                foregroundColor = unitTextColor
+                foregroundColor = showHighlightedTextColor ? unitTextColorHighlighted : unitTextColor
                 font = unitFont
             }
             emphasizedDistanceString.addAttributes([.foregroundColor: foregroundColor, .font: font], range: range)
@@ -542,7 +559,7 @@ open class StylableButton: UIButton {
 open class ManeuverContainerView: UIView {
     @IBOutlet weak var heightConstraint: NSLayoutConstraint!
     
-    @objc dynamic var height: CGFloat = 100 {
+    @objc dynamic public var height: CGFloat = 100 {
         didSet {
             heightConstraint.constant = height
             setNeedsUpdateConstraints()

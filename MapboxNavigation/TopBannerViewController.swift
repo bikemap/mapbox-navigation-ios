@@ -42,6 +42,11 @@ public extension TopBannerViewControllerDelegate {
     }
 }
 
+/**
+ A view controller that displays the current maneuver instruction as a “banner” flush with the edges of the containing view. The user swipes to one side to preview a subsequent maneuver.
+ 
+ This class is the default top banner view controller used by `NavigationOptions` and `NavigationViewController`. `InstructionsCardViewController` provides an alternative, user notification–like interface.
+ */
 open class TopBannerViewController: UIViewController {
     public weak var delegate: TopBannerViewControllerDelegate? = nil
     
@@ -97,13 +102,19 @@ open class TopBannerViewController: UIViewController {
         return view
     }()
     
+    lazy var junctionView: JunctionView = {
+        let view: JunctionView = .forAutoLayout()
+        view.isHidden = true
+        return view
+    }()
+    
     private let instructionsBannerHeight: CGFloat = 100.0
     
     private var informationChildren: [UIView] {
         return [instructionsBannerView] + secondaryChildren
     }
     private var secondaryChildren: [UIView] {
-        return [lanesView, nextBannerView, statusView]
+        return [lanesView, nextBannerView, statusView, junctionView]
     }
     
     public var isDisplayingPreviewInstructions: Bool {
@@ -154,8 +165,8 @@ open class TopBannerViewController: UIViewController {
     
     private func addStackConstraints() {
         let top = informationStackView.topAnchor.constraint(equalTo: view.safeTopAnchor)
-        let leading = informationStackView.leadingAnchor.constraint(equalTo: view.safeLeadingAnchor)
-        let trailing = informationStackView.trailingAnchor.constraint(equalTo: view.safeTrailingAnchor)
+        let leading = informationStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor)
+        let trailing = informationStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         let bottom = informationStackBottomPinConstraint
         //bottom is taken care of as part of steps TVC show/hide
         
@@ -264,6 +275,7 @@ open class TopBannerViewController: UIViewController {
     }
     private func showSecondaryChildren(completion: CompletionHandler? = nil) {
         statusView.isHidden = !statusView.isCurrentlyVisible
+        junctionView.isHidden = !junctionView.isCurrentlyVisible
         lanesView.isHidden = !lanesView.isCurrentlyVisible
         nextBannerView.isHidden = !nextBannerView.isCurrentlyVisible
         
@@ -364,6 +376,9 @@ extension TopBannerViewController: NavigationComponent {
         instructionsBannerView.update(for: instruction)
         lanesView.update(for: instruction)
         nextBannerView.navigationService(service, didPassVisualInstructionPoint: instruction, routeProgress: routeProgress)
+        DispatchQueue.main.async {
+            self.junctionView.update(for: instruction, service: service)
+        }
     }
     
     public func navigationService(_ service: NavigationService, willRerouteFrom location: CLLocation) {

@@ -44,19 +44,22 @@ extension AppDelegate: CPApplicationDelegate {
 
 @available(iOS 12.0, *)
 extension AppDelegate: CarPlayManagerDelegate {
-    func carPlayManager(_ carPlayManager: CarPlayManager, navigationServiceAlong route: Route, routeOptions: RouteOptions, desiredSimulationMode: SimulationMode) -> NavigationService {
+    func carPlayManager(_ carPlayManager: CarPlayManager, navigationServiceAlong route: Route, routeIndex: Int, routeOptions: RouteOptions, desiredSimulationMode: SimulationMode) -> NavigationService {
  
         if let nvc = self.window?.rootViewController?.presentedViewController as? NavigationViewController, let service = nvc.navigationService {
             //Do not set simulation mode if we already have an active navigation session.
             return service
         }
-        return MapboxNavigationService(route: route, routeOptions: routeOptions,  simulating: desiredSimulationMode)
+        return MapboxNavigationService(route: route, routeIndex: routeIndex, routeOptions: routeOptions,  simulating: desiredSimulationMode)
     }
     
     // MARK: CarPlayManagerDelegate
     func carPlayManager(_ carPlayManager: CarPlayManager, didBeginNavigationWith service: NavigationService) {
         currentAppRootViewController?.beginNavigationWithCarplay(navigationService: service)
         carPlayManager.currentNavigator?.compassView.isHidden = false
+        
+        // Render part of the route that has been traversed with full transparency, to give the illusion of a disappearing route.
+        carPlayManager.currentNavigator?.routeLineTracksTraversal = true
     }
     
     func carPlayManagerDidEndNavigation(_ carPlayManager: CarPlayManager) {

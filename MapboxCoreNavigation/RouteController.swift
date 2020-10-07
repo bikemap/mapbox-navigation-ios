@@ -20,19 +20,27 @@ open class RouteController: NSObject {
         public static let shouldPreventReroutesWhenArrivingAtWaypoint: Bool = true
         public static let shouldDisableBatteryMonitoring: Bool = true
     }
+
+    lazy var navigator: Navigator = {
+        let settingsProfile = SettingsProfile(application: ProfileApplication.kMobile,
+                                              platform: ProfilePlatform.KIOS)
+        return Navigator(profile: settingsProfile, config: NavigatorConfig(), customConfig: "")
+    }()
+
+	public var recordedLocations: [CLLocation] = []
     
-    let navigator = Navigator()
-    
-    public var recordedLocations: [CLLocation] = []
-    
-    public var route: Route {
+    public var indexedRoute: IndexedRoute {
         get {
-            return routeProgress.route
+            return routeProgress.indexedRoute
         }
         set {
-            routeProgress = RouteProgress(route: newValue, options: routeProgress.routeOptions)
+            routeProgress = RouteProgress(route: newValue.0, routeIndex: newValue.1, options: routeProgress.routeOptions)
             updateNavigator(with: routeProgress)
         }
+    }
+    
+    public var route: Route {
+        return indexedRoute.0
     }
     
     private var _routeProgress: RouteProgress {
@@ -56,20 +64,13 @@ open class RouteController: NSObject {
     
     var isRerouting = false
     
+    var isRefreshing = false
+    
     var userSnapToStepDistanceFromManeuver: CLLocationDistance?
     
     var previousArrivalWaypoint: Waypoint?
     
     var isFirstLocation: Bool = true
-    
-    public var config: NavigatorConfig? {
-        get {
-            return navigator.getConfig()
-        }
-        set {
-            navigator.setConfigFor(newValue)
-        }
-    }
     
     /**
      Details about the user’s progress along the current route, leg, and step.
@@ -92,15 +93,23 @@ open class RouteController: NSObject {
      - important: If the rawLocation is outside of the route snapping tolerances, this value is nil.
      */
     var snappedLocation: CLLocation? {
-        let status = navigator.getStatusForTimestamp(Date())
+        guard let locationUpdateDate = lastLocationUpdateDate else {
+            return nil
+        }
+
+        let status = navigator.status(at: locationUpdateDate)
         guard status.routeState == .tracking || status.routeState == .complete else {
             return nil
         }
         return CLLocation(status.location)
     }
-    
+
+    private var lastLocationUpdateDate: Date? {
+        return rawLocation?.timestamp
+    }
+
     var heading: CLHeading?
-    
+
     /**
      The most recently received user location.
      - note: This is a raw location received from `locationManager`. To obtain an idealized location, use the `location` property.
@@ -116,6 +125,10 @@ open class RouteController: NSObject {
     public var reroutesProactively: Bool = true
     
     var lastProactiveRerouteDate: Date?
+    
+    var lastRouteRefresh: Date?
+    
+    public var refreshesRoute: Bool = true
     
     /**
      The route controller’s delegate.
@@ -140,10 +153,11 @@ open class RouteController: NSObject {
         return snappedLocation ?? rawLocation
     }
     
-    required public init(along route: Route, options: RouteOptions, directions: Directions = Directions.shared, dataSource source: RouterDataSource) {
+    required public init(along route: Route, routeIndex: Int, options: RouteOptions, directions: Directions = Directions.shared, dataSource source: RouterDataSource) {
         self.directions = directions
-        self._routeProgress = RouteProgress(route: route, options: options)
+        self._routeProgress = RouteProgress(route: route, routeIndex: routeIndex, options: options)
         self.dataSource = source
+        self.refreshesRoute = options.profileIdentifier == .automobileAvoidingTraffic && options.refreshingEnabled
         UIDevice.current.isBatteryMonitoringEnabled = true
         
         super.init()
@@ -184,7 +198,6 @@ open class RouteController: NSObject {
     /// updateRouteLeg is used to notify nav-native of the developer changing the active route-leg.
     private func updateRouteLeg(to value: Int) {
         let legIndex = UInt32(value)
-        navigator.changeRouteLeg(forRoute: 0, leg: legIndex)
         let newStatus = navigator.changeRouteLeg(forRoute: 0, leg: legIndex)
         updateIndexes(status: newStatus, progress: routeProgress)
     }
@@ -196,13 +209,13 @@ open class RouteController: NSObject {
             return
         }
         
-        rawLocation = locations.last
+        rawLocation = location
         
         locations.forEach { navigator.updateLocation(for: FixLocation($0)) }
+
+        let status = navigator.status(at: location.timestamp)
         
         recordedLocations.append(contentsOf: locations)
-        
-        let status = navigator.getStatusForTimestamp(location.timestamp)
         
         // Notify observers if the step’s remaining distance has changed.
         update(progress: routeProgress, with: CLLocation(status.location), rawLocation: location)
@@ -220,7 +233,7 @@ open class RouteController: NSObject {
         }
         
         // Check for faster route proactively (if reroutesProactively is enabled)
-        checkForFasterRoute(from: location, routeProgress: routeProgress)
+        refreshAndCheckForFasterRoute(from: location, routeProgress: routeProgress)
     }
     
     func updateIndexes(status: NavigationStatus, progress: RouteProgress) {
@@ -300,28 +313,17 @@ open class RouteController: NSObject {
     }
     
     private func update(progress: RouteProgress, with location: CLLocation, rawLocation: CLLocation) {
-        let stepProgress = progress.currentLegProgress.currentStepProgress
-        let step = stepProgress.step
+        progress.updateDistanceTraveled(with: rawLocation)
         
-        //Increment the progress model
-        guard let polyline = step.shape else {
-            preconditionFailure("Route steps used for navigation must have shape data")
-        }
-        if let closestCoordinate = polyline.closestCoordinate(to: rawLocation.coordinate) {
-            let remainingDistance = polyline.distance(from: closestCoordinate.coordinate)!
-            let distanceTraveled = step.distance - remainingDistance
-            stepProgress.distanceTraveled = distanceTraveled
-            
-            //Fire the delegate method
-            delegate?.router(self, didUpdate: progress, with: location, rawLocation: rawLocation)
-            
-            //Fire the notification (for now)
-            NotificationCenter.default.post(name: .routeControllerProgressDidChange, object: self, userInfo: [
-                NotificationUserInfoKey.routeProgressKey: progress,
-                NotificationUserInfoKey.locationKey: location, //guaranteed value
-                NotificationUserInfoKey.rawLocationKey: rawLocation, //raw
-                ])
-        }
+        //Fire the delegate method
+        delegate?.router(self, didUpdate: progress, with: location, rawLocation: rawLocation)
+        
+        //Fire the notification (for now)
+        NotificationCenter.default.post(name: .routeControllerProgressDidChange, object: self, userInfo: [
+            NotificationUserInfoKey.routeProgressKey: progress,
+            NotificationUserInfoKey.locationKey: location, //guaranteed value
+            NotificationUserInfoKey.rawLocationKey: rawLocation, //raw
+        ])
     }
     
     private func announcePassage(of spokenInstructionPoint: SpokenInstruction, routeProgress: RouteProgress) {
@@ -346,17 +348,8 @@ open class RouteController: NSObject {
         NotificationCenter.default.post(name: .routeControllerDidPassVisualInstructionPoint, object: self, userInfo: info)
     }
     
-    /**
-     Returns an estimated location at a given timestamp. The timestamp must be
-     a future timestamp compared to the last location received by the location manager.
-     */
-    public func projectedLocation(for timestamp: Date) -> CLLocation {
-        return CLLocation(navigator.getStatusForTimestamp(timestamp).location)
-    }
-    
-    public func advanceLegIndex(location: CLLocation) {
-        let status = navigator.getStatusForTimestamp(location.timestamp)
-        routeProgress.legIndex = Int(status.legIndex)
+    public func advanceLegIndex() {
+        updateRouteLeg(to: routeProgress.legIndex + 1)
     }
     
     public func enableLocationRecording() {
@@ -390,8 +383,8 @@ extension RouteController: Router {
             return true
         }
         
-        let status = status ?? navigator.getStatusForTimestamp(location.timestamp)
-        let offRoute = status.routeState == .offRoute
+        let status = status ?? navigator.status(at: location.timestamp)
+        let offRoute = status.routeState == .offRoute || status.routeState == .invalid
         return !offRoute
     }
     
@@ -424,7 +417,7 @@ extension RouteController: Router {
             case let .success(response):
                 guard let route = response.routes?.first else { return }
                 guard case let .route(routeOptions) = response.options else { return } //TODO: Can a match hit this codepoint?
-                strongSelf._routeProgress = RouteProgress(route: route, options: routeOptions, legIndex: 0)
+                strongSelf._routeProgress = RouteProgress(route: route, routeIndex: 0, options: routeOptions, legIndex: 0)
                 strongSelf._routeProgress.currentLegProgress.stepIndex = 0
                 strongSelf.announce(reroute: route, at: location, proactive: false)
                 
@@ -435,9 +428,6 @@ extension RouteController: Router {
                 ])
                 return
             }
-
-            
-
         }
     }
 }

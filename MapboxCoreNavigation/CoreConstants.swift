@@ -75,6 +75,8 @@ public var RouteControllerMinimumDurationRemainingForProactiveRerouting: TimeInt
 
 /**
  The number of seconds between attempts to automatically calculate a more optimal route while traveling.
+ 
+ In addition to calculating a more optimal route, `RouteController` also refreshes time-dependent statistics about the route, such as traffic congestion and the remaining duration, as long as `DirectionsOptions.profileIdentifier` is set to `DirectionsProfileIdentifier.automobileAvoidingTraffic` and `RouteOptions.refreshingEnabled` is set to `true`.
  */
 public var RouteControllerProactiveReroutingInterval: TimeInterval = 120
 
@@ -113,11 +115,29 @@ public var RouteControllerMaximumSpeedForUsingCurrentStep: CLLocationSpeed = 1
 
 public extension Notification.Name {
     /**
+     Posted when `PassiveLocationDataSource` receives a user location update representing movement along the expected route.
+     
+     The user info dictionary contains the keys `PassiveLocationDataSource.NotificationUserInfoKey.locationKey`, `PassiveLocationDataSource.NotificationUserInfoKey.rawLocationKey`, `PassiveLocationDataSource.NotificationUserInfoKey.matchesKey`, and `PassiveLocationDataSource.NotificationUserInfoKey.roadNameKey`.
+     
+     - seealso: `routeControllerProgressDidUpdate`
+     */
+    static let passiveLocationDataSourceDidUpdate: Notification.Name = .init(rawValue: "PassiveLocationDataSourceDidUpdate")
+    
+    /**
      Posted when `RouteController` receives a user location update representing movement along the expected route.
      
      The user info dictionary contains the keys `RouteController.NotificationUserInfoKey.routeProgressKey`, `RouteController.NotificationUserInfoKey.locationKey`, and `RouteController.NotificationUserInfoKey.rawLocationKey`.
+     
+     - seealso: `passiveLocationDataSourceDidUpdate`
      */
     static let routeControllerProgressDidChange: Notification.Name = .init(rawValue: "RouteControllerProgressDidChange")
+    
+    /**
+     Posted when `RouteController` receives updated information about the current route.
+     
+     The user info dictionary contains the key `RouteController.NotificationUserInfoKey.routeProgressKey`.
+     */
+    static let routeControllerDidRefreshRoute: Notification.Name = .init(rawValue: "RouteControllerDidRefreshRoute")
     
     /**
      Posted after the user diverges from the expected route, just before `RouteController` attempts to calculate a new route.
@@ -164,8 +184,7 @@ public extension Notification.Name {
 
 extension RouteController {
     /**
-     Keys in the user info dictionaries of various notifications posted by instances
-     of `RouteController`.
+     Keys in the user info dictionaries of various notifications posted by instances of `RouteController`.
      */
     public struct NotificationUserInfoKey: Hashable, Equatable, RawRepresentable {
         public typealias RawValue = String
@@ -213,3 +232,39 @@ extension RouteController {
     }
 }
 
+extension PassiveLocationDataSource {
+    /**
+     Keys in the user info dictionaries of various notifications posted by instances of `PassiveLocationDataSource`.
+     */
+    public struct NotificationUserInfoKey: Hashable, Equatable, RawRepresentable {
+        public typealias RawValue = String
+
+        public var rawValue: String
+
+        public init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+        
+        /**
+         A key in the user info dictionary of a `Notification.Name.passiveLocationDataSourceDidUpdate` notification. The corresponding value is a `CLLocation` object representing the current idealized user location.
+         */
+        public static let locationKey: NotificationUserInfoKey = .init(rawValue: "location")
+        
+        /**
+         A key in the user info dictionary of a `Notification.Name.passiveLocationDataSourceDidUpdate` notification. The corresponding value is a `CLLocation` object representing the current raw user location.
+         */
+        public static let rawLocationKey: NotificationUserInfoKey = .init(rawValue: "rawLocation")
+        
+        /**
+         A key in the user info dictionary of a `Notification.Name.passiveLocationDataSourceDidUpdate` notification. The corresponding value is an array of `Match` objects representing possible matches against the road network.
+         */
+        public static let matchesKey: NotificationUserInfoKey = .init(rawValue: "matches")
+        
+        /**
+         A key in the user info dictionary of a `Notification.Name.passiveLocationDataSourceDidUpdate` notification. The corresponding value is a string representing the name of the road the user is currently traveling on.
+         
+         - seealso: `WayNameView`
+         */
+        public static let roadNameKey: NotificationUserInfoKey = .init(rawValue: "roadName")
+    }
+}
