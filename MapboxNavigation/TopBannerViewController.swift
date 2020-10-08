@@ -48,7 +48,7 @@ public extension TopBannerViewControllerDelegate {
  This class is the default top banner view controller used by `NavigationOptions` and `NavigationViewController`. `InstructionsCardViewController` provides an alternative, user notification–like interface.
  */
 open class TopBannerViewController: UIViewController {
-    public weak var delegate: TopBannerViewControllerDelegate? = nil
+    open weak var delegate: TopBannerViewControllerDelegate? = nil
     
     lazy var topPaddingView: TopBannerView = .forAutoLayout()
     
