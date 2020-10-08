@@ -261,7 +261,7 @@ open class NavigationViewController: UIViewController, NavigationStatusPresenter
         let credentials = navigationService.directions.credentials
         self.voiceController = navigationOptions?.voiceController ?? RouteVoiceController(navigationService: navigationService,accessToken: credentials.accessToken, host: credentials.host.absoluteString)
 
-        NavigationSettings.shared.distanceUnit = routeOptions.locale.usesMetric ? .kilometer : .mile
+        NavigationSettings.shared.distanceUnit = routeOptions.distanceMeasurementSystem == .metric ? .kilometer : .mile
         
         styleManager = StyleManager()
         styleManager.delegate = self
