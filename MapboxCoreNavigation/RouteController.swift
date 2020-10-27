@@ -21,12 +21,6 @@ open class RouteController: NSObject {
         public static let shouldDisableBatteryMonitoring: Bool = true
     }
 
-    lazy var navigator: Navigator = {
-        let settingsProfile = SettingsProfile(application: ProfileApplication.kMobile,
-                                              platform: ProfilePlatform.KIOS)
-        return Navigator(profile: settingsProfile, config: NavigatorConfig(), customConfig: "")
-    }()
-
 	public var recordedLocations: [CLLocation] = []
     
     public var indexedRoute: IndexedRoute {
@@ -71,6 +65,8 @@ open class RouteController: NSObject {
     var previousArrivalWaypoint: Waypoint?
     
     var isFirstLocation: Bool = true
+    
+    var navigator: Navigator
     
     /**
      Details about the user’s progress along the current route, leg, and step.
@@ -153,12 +149,33 @@ open class RouteController: NSObject {
         return snappedLocation ?? rawLocation
     }
     
-    required public init(along route: Route, routeIndex: Int, options: RouteOptions, directions: Directions = Directions.shared, dataSource source: RouterDataSource) {
+    required public init(along route: Route,
+                         routeIndex: Int,
+                         options: RouteOptions,
+                         directions: Directions = Directions.shared,
+                         dataSource source: RouterDataSource,
+                         tilesVersion: String? = nil) {
         self.directions = directions
         self._routeProgress = RouteProgress(route: route, routeIndex: routeIndex, options: options)
         self.dataSource = source
         self.refreshesRoute = options.profileIdentifier == .automobileAvoidingTraffic && options.refreshingEnabled
         UIDevice.current.isBatteryMonitoringEnabled = true
+        
+        let settingsProfile = SettingsProfile(application: ProfileApplication.kMobile, platform: ProfilePlatform.KIOS)
+        var tilesConfig = TilesConfig()
+        
+        // In case if `tilesVersion` was provided configure `Navigator` to use it, so that sideloaded
+        // tiles (e.g. via Offline Service) can be used.
+        if let tilesVersion = tilesVersion {
+            let endpointConfig = TileEndpointConfiguration(directions: directions, tilesVersion: tilesVersion)
+            tilesConfig = TilesConfig(tilesPath: Bundle.mapboxCoreNavigation.suggestedTileURL(version: tilesVersion)?.path ?? "",
+                                      inMemoryTileCache: nil,
+                                      mapMatchingSpatialCache: nil,
+                                      threadsCount: nil,
+                                      endpointConfig: endpointConfig)
+        }
+        
+        navigator = Navigator(profile: settingsProfile, config: NavigatorConfig(), customConfig: "", tilesConfig: tilesConfig)
         
         super.init()
         
@@ -183,6 +200,32 @@ open class RouteController: NSObject {
         }
     }
     
+    func geometryEncoding(_ routeShapeFormat: RouteShapeFormat) -> ActiveGuidanceGeometryEncoding {
+        switch routeShapeFormat {
+        case .geoJSON:
+            return .kGeoJSON
+        case .polyline:
+            return .kPolyline5
+        case .polyline6:
+            return .kPolyline6
+        }
+    }
+    
+    func mode(_ profileIdentifier: DirectionsProfileIdentifier) -> ActiveGuidanceMode {
+        switch profileIdentifier {
+        case .automobile:
+            return .kDriving
+        case .automobileAvoidingTraffic:
+            return .kDriving
+        case .cycling:
+            return .kCycling
+        case .walking:
+            return .kWalking
+        default:
+            return .kDriving
+        }
+    }
+    
     /// updateNavigator is used to pass the new progress model onto nav-native.
     private func updateNavigator(with progress: RouteProgress) {
         let encoder = JSONEncoder()
@@ -192,14 +235,17 @@ open class RouteController: NSObject {
             return
         }
         // TODO: Add support for alternative route
-        navigator.setRouteForRouteResponse(routeJSONString, route: 0, leg: UInt32(routeProgress.legIndex))
+        let activeGuidanceOptions = ActiveGuidanceOptions(mode: mode(progress.routeOptions.profileIdentifier),
+                                                          geometryEncoding: geometryEncoding(progress.routeOptions.shapeFormat))
+        navigator.setRouteForRouteResponse(routeJSONString, route: 0, leg: UInt32(routeProgress.legIndex), options: activeGuidanceOptions)
     }
     
     /// updateRouteLeg is used to notify nav-native of the developer changing the active route-leg.
     private func updateRouteLeg(to value: Int) {
         let legIndex = UInt32(value)
-        let newStatus = navigator.changeRouteLeg(forRoute: 0, leg: legIndex)
-        updateIndexes(status: newStatus, progress: routeProgress)
+        if navigator.changeRouteLeg(forRoute: 0, leg: legIndex), let timestamp = location?.timestamp {
+            updateIndexes(status: navigator.status(at: timestamp), progress: routeProgress)
+        }
     }
     
     public func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

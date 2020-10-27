@@ -37,7 +37,12 @@ class CustomViewController: UIViewController, MGLMapViewDelegate {
         super.viewDidLoad()
         
         let locationManager = simulateLocation ? SimulatedLocationManager(route: userIndexedRoute!.0) : NavigationLocationManager()
-        navigationService = MapboxNavigationService(route: userIndexedRoute!.0, routeIndex: userIndexedRoute!.1, routeOptions: userRouteOptions!, locationSource: locationManager, simulating: simulateLocation ? .always : .onPoorGPS)
+        navigationService = MapboxNavigationService(route: userIndexedRoute!.0,
+                                                    routeIndex: userIndexedRoute!.1,
+                                                    routeOptions: userRouteOptions!,
+                                                    locationSource: locationManager,
+                                                    simulating: simulateLocation ? .always : .onPoorGPS,
+                                                    tilesVersion: OfflineServiceConstants.tilesVersion)
         
         mapView.delegate = self
         mapView.compassView.isHidden = true
@@ -73,7 +78,7 @@ class CustomViewController: UIViewController, MGLMapViewDelegate {
 
     func suspendNotifications() {
         NotificationCenter.default.removeObserver(self, name: .routeControllerProgressDidChange, object: nil)
-        NotificationCenter.default.removeObserver(self, name: .routeControllerWillReroute, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .routeControllerDidReroute, object: nil)
         NotificationCenter.default.removeObserver(self, name: .routeControllerDidPassVisualInstructionPoint, object: nil)
     }
 
@@ -112,6 +117,7 @@ class CustomViewController: UIViewController, MGLMapViewDelegate {
     // Fired when the user is no longer on the route.
     // Update the route on the map.
     @objc func rerouted(_ notification: NSNotification) {
+        self.mapView.removeWaypoints()
         self.mapView.show([navigationService.route])
     }
 
