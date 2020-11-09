@@ -360,6 +360,14 @@ open class NavigationViewController: UIViewController, NavigationStatusPresenter
             UIApplication.shared.isIdleTimerDisabled = false
         }
     }
+  
+    public func toggleRouteOverview() {
+        self.mapViewController?.toggleOverview(self)
+    }
+    
+    public func toggleVoiceIntructionsMute() {
+        NavigationSettings.shared.voiceMuted = !NavigationSettings.shared.voiceMuted
+    }
     
     func notifyUserAboutLowVolumeIfNeeded() {
         guard !(navigationService.locationManager is SimulatedLocationManager) else { return }
