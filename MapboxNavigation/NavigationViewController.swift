@@ -361,12 +361,17 @@ open class NavigationViewController: UIViewController, NavigationStatusPresenter
         }
     }
   
-    public func toggleRouteOverview() {
+    public func showRouteOverview() {
         self.mapViewController?.toggleOverview(self)
     }
     
-    public func toggleVoiceIntructionsMute() {
-        NavigationSettings.shared.voiceMuted = !NavigationSettings.shared.voiceMuted
+    public var voiceInstructionsMuted: Bool {
+        get {
+            return NavigationSettings.shared.voiceMuted
+        }
+        set {
+            NavigationSettings.shared.voiceMuted = newValue
+        }
     }
     
     func notifyUserAboutLowVolumeIfNeeded() {
