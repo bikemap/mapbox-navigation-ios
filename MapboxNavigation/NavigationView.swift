@@ -108,6 +108,10 @@ open class NavigationView: UIView {
             endOfRouteView?.translatesAutoresizingMaskIntoConstraints = false
         }
     }
+  
+    var bottomBannerDefaultHeight: CGFloat = 100.0
+    var bottomBannerLandscapeSmallHeight: CGFloat = 60.0
+    var bottomBannerLandscapeBigHeight: CGFloat = 80.0
     
     //MARK: - Initializers
     

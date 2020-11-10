@@ -42,16 +42,16 @@ extension NavigationView {
             bottomBannerContainerView.removeConstraint(bottomBannerContainerHeightConstraint)
         }
         
-        var height: CGFloat = 100.0
+        var height: CGFloat = bottomBannerDefaultHeight
         
         // iPhone 8, X, iPhone Xs, 11 Pro, SE (Landscape)
         if traitCollection.verticalSizeClass == .compact && traitCollection.horizontalSizeClass == .compact {
-            height = 60.0
+            height = bottomBannerLandscapeSmallHeight
         }
         
         // iPhone 8 Plus, iPhone Xr, iPhone Xs Max, 11, 11 Pro Max (Landscape)
         if traitCollection.verticalSizeClass == .compact && traitCollection.horizontalSizeClass == .regular {
-            height = 80.0
+            height = bottomBannerLandscapeBigHeight
         }
         
         bottomBannerContainerHeightConstraint = bottomBannerContainerView.heightAnchor.constraint(equalToConstant: height)

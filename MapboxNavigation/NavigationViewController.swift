@@ -373,6 +373,16 @@ open class NavigationViewController: UIViewController, NavigationStatusPresenter
             NavigationSettings.shared.voiceMuted = newValue
         }
     }
+  
+    public func setupNavigationView(with bottomPadding: CGFloat) {
+        guard let mapViewController = self.mapViewController else { return }
+        
+        mapViewController.navigationView.floatingStackView.isHidden = true
+        mapViewController.navigationView.bottomBannerDefaultHeight = bottomPadding
+        mapViewController.navigationView.bottomBannerLandscapeSmallHeight = bottomPadding
+        mapViewController.navigationView.bottomBannerLandscapeBigHeight = bottomPadding
+        mapViewController.navigationView.reinstallRequiredConstraints()
+    }
     
     func notifyUserAboutLowVolumeIfNeeded() {
         guard !(navigationService.locationManager is SimulatedLocationManager) else { return }
