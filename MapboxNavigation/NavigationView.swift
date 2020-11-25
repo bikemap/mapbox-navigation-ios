@@ -48,7 +48,6 @@ open class NavigationView: UIView {
     
     lazy var endOfRouteHeightConstraint: NSLayoutConstraint? = self.endOfRouteView?.heightAnchor.constraint(equalToConstant: Constants.endOfRouteHeight)
     
-    var bottomBannerContainerHeightConstraint: NSLayoutConstraint?
     
     private enum Images {
         static let overview = UIImage(named: "overview", in: .mapboxNavigation, compatibleWith: nil)!.withRenderingMode(.alwaysTemplate)
@@ -108,10 +107,6 @@ open class NavigationView: UIView {
             endOfRouteView?.translatesAutoresizingMaskIntoConstraints = false
         }
     }
-  
-    var bottomBannerDefaultHeight: CGFloat = 100.0
-    var bottomBannerLandscapeSmallHeight: CGFloat = 60.0
-    var bottomBannerLandscapeBigHeight: CGFloat = 80.0
     
     //MARK: - Initializers
     

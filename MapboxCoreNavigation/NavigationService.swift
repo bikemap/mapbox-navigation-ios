@@ -215,11 +215,7 @@ public class MapboxNavigationService: NSObject, NavigationService {
      - parameter routeindex: The index of the route within the original `RouteController` object.
      */
     convenience init(route: Route, routeIndex: Int, routeOptions options: RouteOptions) {
-        self.init(route: route,
-                  routeIndex: routeIndex,
-                  routeOptions: options, directions: nil,
-                  locationSource: nil,
-                  eventsManagerType: nil)
+        self.init(route: route, routeIndex: routeIndex, routeOptions: options, directions: nil, locationSource: nil, eventsManagerType: nil)
     }
     
     /**
@@ -232,7 +228,6 @@ public class MapboxNavigationService: NSObject, NavigationService {
      - parameter eventsManagerType: An optional events manager type to use while tracking the route.
      - parameter simulationMode: The simulation mode desired.
      - parameter routerType: An optional router type to use for traversing the route.
-     - parameter tilesVersion: Version of tiles downloaded via Offline Service.
      */
     required public init(route: Route,
                          routeIndex: Int,
@@ -241,8 +236,7 @@ public class MapboxNavigationService: NSObject, NavigationService {
                          locationSource: NavigationLocationManager? = nil,
                          eventsManagerType: NavigationEventsManager.Type? = nil,
                          simulating simulationMode: SimulationMode = .onPoorGPS,
-                         routerType: Router.Type? = nil,
-                         tilesVersion: String? = nil) {
+                         routerType: Router.Type? = nil) {
         nativeLocationSource = locationSource ?? NavigationLocationManager()
         self.directions = directions ?? Directions.shared
         self.simulationMode = simulationMode
@@ -255,12 +249,7 @@ public class MapboxNavigationService: NSObject, NavigationService {
         }
         
         let routerType = routerType ?? DefaultRouter.self
-        router = routerType.init(along: route,
-                                 routeIndex: routeIndex,
-                                 options: routeOptions,
-                                 directions: self.directions,
-                                 dataSource: self,
-                                 tilesVersion: tilesVersion)
+        router = routerType.init(along: route, routeIndex: routeIndex, options: routeOptions, directions: self.directions, dataSource: self)
         NavigationSettings.shared.distanceUnit = routeOptions.locale.usesMetric ? .kilometer : .mile
         
         let eventType = eventsManagerType ?? NavigationEventsManager.self
@@ -428,6 +417,19 @@ extension MapboxNavigationService: CLLocationManagerDelegate {
         
         //Finally, pass the update onto the router.
         router.locationManager?(manager, didUpdateLocations: locations)
+    }
+    
+    public func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        if #available(iOS 14.0, *) {
+            let info: [NotificationUserInfoKey: Any] = [
+                .locationAuthorizationKey: manager.value(forKey: "accuracyAuthorization") ?? 0
+            ]
+            NotificationCenter.default.post(name: .locationAuthorizationDidChange, object: manager, userInfo: info)
+            delegate?.navigationServiceDidChangeAuthorization(self, didChangeAuthorizationFor: manager)
+        } else {
+            // Fallback on earlier versions
+            return
+        }
     }
 }
 

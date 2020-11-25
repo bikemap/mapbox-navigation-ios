@@ -24,7 +24,7 @@ public typealias ContainerViewController = UIViewController & NavigationComponen
 open class NavigationViewController: UIViewController, NavigationStatusPresenter {
     /**
      A `Route` object constructed by [MapboxDirections](https://docs.mapbox.com/ios/api/directions/) along with its index in a `RouteResponse`.
-     
+      
      In cases where you need to update the route after navigation has started, you can set a new route here and `NavigationViewController` will update its UI accordingly.
      */
     open var indexedRoute: IndexedRoute {
@@ -255,10 +255,7 @@ open class NavigationViewController: UIViewController, NavigationStatusPresenter
     required public init(for route: Route, routeIndex: Int, routeOptions: RouteOptions, navigationOptions: NavigationOptions? = nil) {
         super.init(nibName: nil, bundle: nil)
         
-        self.navigationService = navigationOptions?.navigationService ?? MapboxNavigationService(route: route,
-                                                                                                 routeIndex: routeIndex,
-                                                                                                 routeOptions: routeOptions,
-                                                                                                 tilesVersion: navigationOptions?.tilesVersion)
+        self.navigationService = navigationOptions?.navigationService ?? MapboxNavigationService(route: route, routeIndex: routeIndex, routeOptions: routeOptions)
         self.navigationService.delegate = self
 
         let credentials = navigationService.directions.credentials
@@ -378,10 +375,7 @@ open class NavigationViewController: UIViewController, NavigationStatusPresenter
         guard let mapViewController = self.mapViewController else { return }
         
         mapViewController.navigationView.floatingStackView.isHidden = true
-        mapViewController.navigationView.bottomBannerDefaultHeight = bottomPadding
-        mapViewController.navigationView.bottomBannerLandscapeSmallHeight = bottomPadding
-        mapViewController.navigationView.bottomBannerLandscapeBigHeight = bottomPadding
-        mapViewController.navigationView.reinstallRequiredConstraints()
+        mapViewController.navigationView.bottomBannerContainerView.heightAnchor.constraint(equalToConstant: bottomPadding).isActive = true
     }
     
     func notifyUserAboutLowVolumeIfNeeded() {
@@ -392,6 +386,7 @@ open class NavigationViewController: UIViewController, NavigationStatusPresenter
         let title = NSLocalizedString("INAUDIBLE_INSTRUCTIONS_CTA", bundle: .mapboxNavigation, value: "Adjust Volume to Hear Instructions", comment: "Label indicating the device volume is too low to hear spoken instructions and needs to be manually increased")
         showStatus(title: title, spinner: false, duration: 3, animated: true, interactive: false)
     }
+    
     
     // MARK: Containerization
     
@@ -719,6 +714,22 @@ extension NavigationViewController: NavigationServiceDelegate {
         return navigationComponents.allSatisfy { $0.navigationServiceShouldDisableBatteryMonitoring(service) }
     }
     
+    public func navigationServiceDidChangeAuthorization(_ service: NavigationService, didChangeAuthorizationFor locationManager: CLLocationManager) {
+        // CLLocationManager.accuracyAuthorization was introduced in the iOS 14 SDK in Xcode 12, so Xcode 11 doesn’t recognize it.
+        guard let accuracyAuthorizationValue = locationManager.value(forKey: "accuracyAuthorization") as? Int else { return }
+        let accuracyAuthorization = MBNavigationAccuracyAuthorization(rawValue: accuracyAuthorizationValue)
+        
+        if #available(iOS 14.0, *), accuracyAuthorization == .reducedAccuracy {
+            let title = NSLocalizedString("ENABLE_PRECISE_LOCATION", bundle: .mapboxNavigation, value: "Enable precise location to navigate", comment: "Label indicating precise location is off and needs to be turned on to navigate")
+            showStatus(title: title, spinner: false, duration: 20, animated: true, interactive: false)
+            mapView?.reducedAccuracyActivatedMode = true
+        } else {
+            //Fallback on earlier versions
+            mapView?.reducedAccuracyActivatedMode = false
+            return
+        }
+    }
+    
     // MARK: - Building Extrusion Highlighting
     
     private func attemptToHighlightBuildings(_ progress: RouteProgress, with location: CLLocation) {
@@ -804,9 +815,7 @@ extension NavigationViewController {
         let displayValue = 1+min(Int(9 * statusView.value), 8)
         statusView.showSimulationStatus(speed: displayValue)
 
-        if let locationManager = navigationService.locationManager as? SimulatedLocationManager {
-            locationManager.speedMultiplier = Double(displayValue)
-        }
+        navigationService.simulationSpeedMultiplier = Double(displayValue)
     }
 }
 // MARK: TopBannerViewControllerDelegate
@@ -858,7 +867,11 @@ extension NavigationViewController: TopBannerViewControllerDelegate {
         guard let upcomingStep = legProgress.upcomingStep else { return }
         
         let previewBanner: CompletionHandler = {
-            banner.preview(step: legProgress.currentStep, maneuverStep: upcomingStep, distance: legProgress.currentStep.distance, steps: remaining)
+            // Since Mapbox SDK v6.2.0-beta.1 `MGLMapView.setCenter(_:zoomLevel:direction:animated:completionHandler:)` method is calling `completionHandler`
+            // synchronously, this prevents from well-timed maneuver redrawing in `ManeuverView`. Workaround is to perform asynchronous redrawing on main queue.
+            DispatchQueue.main.async {
+                banner.preview(step: legProgress.currentStep, maneuverStep: upcomingStep, distance: legProgress.currentStep.distance, steps: remaining)
+            }
         }
         
         mapViewController?.center(on: upcomingStep, route: route, legIndex: legIndex, stepIndex: nextStepIndex, animated: animated, completion: previewBanner)
