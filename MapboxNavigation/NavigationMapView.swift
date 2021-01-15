@@ -1267,28 +1267,8 @@ open class NavigationMapView: MGLMapView, UIGestureRecognizerDelegate {
         return MGLShapeCollectionFeature(shapes: linesPerLeg)
     }
     
-    // Bikemap 123 to abc waypoints.
-    func characterForIndex(index: Int) -> String {
-        let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        let targetIndex = (index - 1) % alphabet.count // We never use charcter for the start point
-        let index = alphabet.index(alphabet.startIndex, offsetBy: targetIndex)
-        return String(alphabet[index])
-    }
-    
     func shape(for waypoints: [Waypoint], legIndex: Int) -> MGLShape? {
-        var features = [MGLPointFeature]()
-        
-        for (waypointIndex, waypoint) in waypoints.enumerated() {
-            let feature = MGLPointFeature()
-            feature.coordinate = waypoint.coordinate
-            feature.attributes = [
-                "waypointCompleted": waypointIndex < legIndex,
-                "name": self.characterForIndex(index: waypointIndex + 1)
-            ]
-            features.append(feature)
-        }
-        
-        return MGLShapeCollectionFeature(shapes: features)
+        return nil
     }
     
     func routeWaypointCircleStyleLayer(identifier: String, source: MGLSource) -> MGLStyleLayer {
