@@ -281,8 +281,10 @@ class ViewController: UIViewController {
     
     func startNavigation(styles: [Style]) {
         guard let response = response, let route = response.routes?.first, case let .route(routeOptions) = response.options else { return }
-        
-        let options = NavigationOptions(styles: styles, navigationService: navigationService(route: route, routeIndex: 0, options: routeOptions))
+        let mapboxNavigationService =
+          MapboxNavigationService(route: route, routeIndex: 0, routeOptions: routeOptions,
+                                  routerType: LegacyRouteController.self)
+        let options = NavigationOptions(styles: styles, navigationService: mapboxNavigationService)
         let navigationViewController = NavigationViewController(for: route, routeIndex: 0, routeOptions: routeOptions, navigationOptions: options)
         navigationViewController.delegate = self
         
@@ -333,7 +335,10 @@ class ViewController: UIViewController {
         guard let response = response, let route = response.routes?.first, case let .route(routeOptions) = response.options else { return }
 
         let styles = [CustomDayStyle(), CustomNightStyle()]
-        let options = NavigationOptions(styles: styles, navigationService: navigationService(route: route, routeIndex: 0, options: routeOptions))
+        let mapboxNavigationService =
+          MapboxNavigationService(route: route, routeIndex: 0, routeOptions: routeOptions,
+                                  routerType: LegacyRouteController.self)
+        let options = NavigationOptions(styles: styles, navigationService: mapboxNavigationService)
         let navigationViewController = NavigationViewController(for: route, routeIndex: 0, routeOptions: routeOptions, navigationOptions: options)
         navigationViewController.delegate = self
 
@@ -357,7 +362,8 @@ class ViewController: UIViewController {
     func navigationService(route: Route, routeIndex: Int, options: RouteOptions) -> NavigationService {
         let simulate = simulationButton.isSelected
         let mode: SimulationMode = simulate ? .always : .onPoorGPS
-        return MapboxNavigationService(route: route, routeIndex: routeIndex, routeOptions: options, simulating: mode)
+        return MapboxNavigationService(route: route, routeIndex: routeIndex, routeOptions: options, simulating: mode,
+                                       routerType: LegacyRouteController.self)
     }
 
     func presentAndRemoveMapview(_ navigationViewController: NavigationViewController, completion: CompletionHandler?) {
