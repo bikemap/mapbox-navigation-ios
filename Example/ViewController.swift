@@ -410,7 +410,6 @@ class ViewController: UIViewController {
         mapView.gestureRecognizers?.filter({ $0 is UILongPressGestureRecognizer }).forEach(singleTap.require(toFail:))
         mapView.addGestureRecognizer(singleTap)
         
-        trackLocations(mapView: mapView)
         mapView.showsUserLocation = true
         mapView.userTrackingMode = .follow
         mapView.showsUserHeadingIndicator = true
@@ -577,45 +576,5 @@ extension ViewController: VisualInstructionDelegate {
         // return mutable
         
         return presented
-    }
-}
-
-// MARK: Free driving
-extension ViewController {
-    func trackLocations(mapView: NavigationMapView) {
-        let dataSource = PassiveLocationDataSource()
-        let locationManager = PassiveLocationManager(dataSource: dataSource)
-        mapView.locationManager = locationManager
-        
-        NotificationCenter.default.addObserver(self, selector: #selector(didUpdatePassiveLocation), name: .passiveLocationDataSourceDidUpdate, object: dataSource)
-        
-        trackPolyline = nil
-        rawTrackPolyline = nil
-    }
-    
-    @objc func didUpdatePassiveLocation(_ notification: Notification) {
-        if let roadName = notification.userInfo?[PassiveLocationDataSource.NotificationUserInfoKey.roadNameKey] as? String {
-            title = roadName
-        }
-        
-        if let location = notification.userInfo?[PassiveLocationDataSource.NotificationUserInfoKey.locationKey] as? CLLocation {
-            if trackPolyline == nil {
-                trackPolyline = MGLPolyline()
-            }
-            
-            var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
-            trackPolyline?.appendCoordinates(&coordinates, count: UInt(coordinates.count))
-        }
-        
-        if let rawLocation = notification.userInfo?[PassiveLocationDataSource.NotificationUserInfoKey.rawLocationKey] as? CLLocation {
-            if rawTrackPolyline == nil {
-                rawTrackPolyline = MGLPolyline()
-            }
-            
-            var coordinates: [CLLocationCoordinate2D] = [rawLocation.coordinate]
-            rawTrackPolyline?.appendCoordinates(&coordinates, count: UInt(coordinates.count))
-        }
-        
-        mapView?.addAnnotations([rawTrackPolyline!, trackPolyline!])
     }
 }
