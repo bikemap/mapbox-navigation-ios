@@ -62,7 +62,7 @@ open class LegacyRouteController: NSObject, Router, InternalRouter, CLLocationMa
             return routeProgress.indexedRoute
         }
         set {
-            routeProgress.indexedRoute = newValue
+            routeProgress = RouteProgress(route: newValue.0, routeIndex: newValue.1, options: routeProgress.routeOptions)
         }
     }
     
