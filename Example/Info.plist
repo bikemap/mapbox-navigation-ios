@@ -23,7 +23,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>MGLMapboxAccessToken</key>
-	<string>sk.eyJ1IjoiYmlrZW1hcC1vZmZpY2lhbCIsImEiOiJja2w2cWpldDkxZzZ0MndtbnJnMjZmeDVxIn0.FKrGQv_MImmiNnfTEa8VVQ</string>
+	<string>PASTE MAPBOX ACCESS TOKEN HERE</string>
 	<key>MGLMapboxMetricsEnabledSettingShownInApp</key>
 	<string>YES</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
