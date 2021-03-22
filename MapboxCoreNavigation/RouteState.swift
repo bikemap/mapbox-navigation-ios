@@ -1,8 +1,16 @@
 import Foundation
-import MapboxNavigationNative
 
 /// :nodoc:
-extension RouteState: CustomStringConvertible {
+enum RouteState: CustomStringConvertible {
+  
+    case invalid
+    case initialized
+    case tracking
+    case complete
+    case offRoute
+    case stale
+    case uncertain
+  
     public var description: String {
         switch self {
         case .invalid:

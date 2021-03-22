@@ -281,8 +281,10 @@ class ViewController: UIViewController {
     
     func startNavigation(styles: [Style]) {
         guard let response = response, let route = response.routes?.first, case let .route(routeOptions) = response.options else { return }
-        
-        let options = NavigationOptions(styles: styles, navigationService: navigationService(route: route, routeIndex: 0, options: routeOptions))
+        let mapboxNavigationService =
+          MapboxNavigationService(route: route, routeIndex: 0, routeOptions: routeOptions,
+                                  routerType: LegacyRouteController.self)
+        let options = NavigationOptions(styles: styles, navigationService: mapboxNavigationService)
         let navigationViewController = NavigationViewController(for: route, routeIndex: 0, routeOptions: routeOptions, navigationOptions: options)
         navigationViewController.delegate = self
         
@@ -333,7 +335,10 @@ class ViewController: UIViewController {
         guard let response = response, let route = response.routes?.first, case let .route(routeOptions) = response.options else { return }
 
         let styles = [CustomDayStyle(), CustomNightStyle()]
-        let options = NavigationOptions(styles: styles, navigationService: navigationService(route: route, routeIndex: 0, options: routeOptions))
+        let mapboxNavigationService =
+          MapboxNavigationService(route: route, routeIndex: 0, routeOptions: routeOptions,
+                                  routerType: LegacyRouteController.self)
+        let options = NavigationOptions(styles: styles, navigationService: mapboxNavigationService)
         let navigationViewController = NavigationViewController(for: route, routeIndex: 0, routeOptions: routeOptions, navigationOptions: options)
         navigationViewController.delegate = self
 
@@ -357,7 +362,8 @@ class ViewController: UIViewController {
     func navigationService(route: Route, routeIndex: Int, options: RouteOptions) -> NavigationService {
         let simulate = simulationButton.isSelected
         let mode: SimulationMode = simulate ? .always : .onPoorGPS
-        return MapboxNavigationService(route: route, routeIndex: routeIndex, routeOptions: options, simulating: mode)
+        return MapboxNavigationService(route: route, routeIndex: routeIndex, routeOptions: options, simulating: mode,
+                                       routerType: LegacyRouteController.self)
     }
 
     func presentAndRemoveMapview(_ navigationViewController: NavigationViewController, completion: CompletionHandler?) {
@@ -404,7 +410,6 @@ class ViewController: UIViewController {
         mapView.gestureRecognizers?.filter({ $0 is UILongPressGestureRecognizer }).forEach(singleTap.require(toFail:))
         mapView.addGestureRecognizer(singleTap)
         
-        trackLocations(mapView: mapView)
         mapView.showsUserLocation = true
         mapView.userTrackingMode = .follow
         mapView.showsUserHeadingIndicator = true
@@ -571,45 +576,5 @@ extension ViewController: VisualInstructionDelegate {
         // return mutable
         
         return presented
-    }
-}
-
-// MARK: Free driving
-extension ViewController {
-    func trackLocations(mapView: NavigationMapView) {
-        let dataSource = PassiveLocationDataSource()
-        let locationManager = PassiveLocationManager(dataSource: dataSource)
-        mapView.locationManager = locationManager
-        
-        NotificationCenter.default.addObserver(self, selector: #selector(didUpdatePassiveLocation), name: .passiveLocationDataSourceDidUpdate, object: dataSource)
-        
-        trackPolyline = nil
-        rawTrackPolyline = nil
-    }
-    
-    @objc func didUpdatePassiveLocation(_ notification: Notification) {
-        if let roadName = notification.userInfo?[PassiveLocationDataSource.NotificationUserInfoKey.roadNameKey] as? String {
-            title = roadName
-        }
-        
-        if let location = notification.userInfo?[PassiveLocationDataSource.NotificationUserInfoKey.locationKey] as? CLLocation {
-            if trackPolyline == nil {
-                trackPolyline = MGLPolyline()
-            }
-            
-            var coordinates: [CLLocationCoordinate2D] = [location.coordinate]
-            trackPolyline?.appendCoordinates(&coordinates, count: UInt(coordinates.count))
-        }
-        
-        if let rawLocation = notification.userInfo?[PassiveLocationDataSource.NotificationUserInfoKey.rawLocationKey] as? CLLocation {
-            if rawTrackPolyline == nil {
-                rawTrackPolyline = MGLPolyline()
-            }
-            
-            var coordinates: [CLLocationCoordinate2D] = [rawLocation.coordinate]
-            rawTrackPolyline?.appendCoordinates(&coordinates, count: UInt(coordinates.count))
-        }
-        
-        mapView?.addAnnotations([rawTrackPolyline!, trackPolyline!])
     }
 }

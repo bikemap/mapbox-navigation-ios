@@ -248,7 +248,7 @@ public class MapboxNavigationService: NSObject, NavigationService {
             self?.simulate(intent: .poorGPS)
         }
         
-        let routerType = routerType ?? DefaultRouter.self
+        let routerType = routerType ?? LegacyRouteController.self
         router = routerType.init(along: route, routeIndex: routeIndex, options: routeOptions, directions: self.directions, dataSource: self)
         NavigationSettings.shared.distanceUnit = routeOptions.locale.usesMetric ? .kilometer : .mile
         
