@@ -16,14 +16,31 @@ step-library:
   - &restore-cache-cocoapods
       restore_cache:
         keys:
-          - nav-cache-pod-v1-{{ .Environment.CIRCLE_JOB }}-{{ checksum "MapboxCoreNavigationTests/CocoaPodsTest/PodInstall/Podfile.lock" }}
+          - nav-cache-pod-v1-{{ .Environment.CIRCLE_JOB }}-{{ checksum "Tests/CocoaPodsTest/PodInstall/Podfile.lock" }}
           - nav-cache-pod-v1
+
+  - &restore-cache-cocoapods-installation
+      restore_cache:
+        keys:
+          - 1-gems-{{ checksum "Gemfile.lock" }}
+
+  - &install-cocoapods-installation
+      run:
+        name: Install cocoapods
+        command: |
+          bundle check || bundle install --path vendor/bundle --clean
+
+  - &save-cache-cocoapods-installation
+      save_cache:
+          key: 1-gems-{{ checksum "Gemfile.lock" }}
+          paths:
+            - vendor/bundle
   
   - &save-cache-cocoapods
       save_cache:
-        key: nav-cache-pod-v1-{{ .Environment.CIRCLE_JOB }}-{{ checksum "MapboxCoreNavigationTests/CocoaPodsTest/PodInstall/Podfile.lock" }}
+        key: nav-cache-pod-v1-{{ .Environment.CIRCLE_JOB }}-{{ checksum "Tests/CocoaPodsTest/PodInstall/Podfile.lock" }}
         paths:
-          - MapboxCoreNavigationTests/CocoaPodsTest/PodInstall/Pods
+          - Tests/CocoaPodsTest/PodInstall/Pods
 
   - &restore-cache-podmaster
       restore_cache:
@@ -67,7 +84,9 @@ step-library:
   - &install-dependencies
       unless:
         condition:
-          equal: [ "12.0.0", << parameters.xcode >> ]
+          or:
+            - equal: [ "12.1.0", << parameters.xcode >> ]
+            - equal: [ true, << parameters.spm >> ]
         steps:
           run:
             name: Install Dependencies
@@ -78,7 +97,9 @@ step-library:
   - &install-dependencies-12
       when:
         condition:
-          equal: [ "12.0.0", << parameters.xcode >> ]
+          and:
+            - equal: [ "12.1.0", << parameters.xcode >> ]
+            - not: << parameters.spm >>
         steps:
           run:
             name: Install Dependencies
@@ -122,27 +143,30 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: 1
     steps:
       - checkout
+      - *install-cocoapods-installation
       - *prepare-mapbox-file
       - *prepare-netrc-file
       - *update-carthage-version
       - *restore-cache-podmaster
+      - *restore-cache-cocoapods-installation
       - *restore-cache-cocoapods
       - when:
           condition: << parameters.update >>
           steps:
-            - run: cd MapboxCoreNavigationTests/CocoaPodsTest/PodInstall && pod update --repo-update
+            - run: cd Tests/CocoaPodsTest/PodInstall && bundle exec pod update --repo-update
       - unless:
           condition: << parameters.update >>
           steps:
-            - run: cd MapboxCoreNavigationTests/CocoaPodsTest/PodInstall && pod install --repo-update
-      - run: cd MapboxCoreNavigationTests/CocoaPodsTest/PodInstall && xcodebuild -workspace PodInstall.xcworkspace -scheme PodInstall -destination 'platform=iOS Simulator,OS=<< parameters.iOS >>,name=iPhone 8 Plus' clean build | xcpretty
+            - run: cd Tests/CocoaPodsTest/PodInstall && bundle exec pod install --repo-update
+      - run: cd Tests/CocoaPodsTest/PodInstall && xcodebuild -workspace PodInstall.xcworkspace -scheme PodInstall -destination 'platform=iOS Simulator,OS=<< parameters.iOS >>,name=iPhone 8 Plus' clean build | xcpretty
       - when:
           condition: << parameters.lint >>
           steps:
             - run: find . -path '*.podspec' -exec perl -pi -e 's/.+\.social_media_url.+//' {} \;
-            - run: pod lib lint MapboxCoreNavigation.podspec
+            - run: bundle exec pod lib lint MapboxCoreNavigation.podspec
       - *save-cache-podmaster
       - *save-cache-cocoapods
+      - *save-cache-cocoapods-installation
 
   build-job:
     parameters:
@@ -155,6 +179,9 @@ jobs:
       iOS:
         type: string
         default: "13.4.1"
+      spm:
+        type: boolean
+        default: false
       test:
         type: boolean
         default: true
@@ -188,26 +215,44 @@ jobs:
           name: pre-start simulator
           command: xcrun instruments -w "<< parameters.device >> (<< parameters.iOS >>) [" || true
       - *verify-missing-localizable-strings
-      - run:
-          name: MapboxCoreNavigation
-          command: xcodebuild -sdk iphonesimulator -destination 'platform=iOS Simulator,OS=<< parameters.iOS >>,name=<< parameters.device >>' -project MapboxNavigation.xcodeproj -scheme MapboxCoreNavigation clean build <<# parameters.test >>test <</ parameters.test >> <<# parameters.codecoverage >>-enableCodeCoverage YES<</ parameters.codecoverage >> 
+      - when:
+          condition:
+            not: << parameters.spm >>
+          steps:
+            - run:
+                name: MapboxCoreNavigation
+                command: xcodebuild -sdk iphonesimulator -destination 'platform=iOS Simulator,OS=<< parameters.iOS >>,name=<< parameters.device >>' -project MapboxNavigation.xcodeproj -scheme MapboxCoreNavigation clean build <<# parameters.test >>test <</ parameters.test >> <<# parameters.codecoverage >>-enableCodeCoverage YES<</ parameters.codecoverage >>
+      - when:
+          condition: << parameters.spm >>
+          steps:
+            - run: for ip in $(dig @8.8.8.8 github.com +short); do ssh-keyscan github.com,$ip; ssh-keyscan $ip; done 2>/dev/null >> ~/.ssh/known_hosts
+            - run: mv MapboxNavigation.xcodeproj MapboxNavigation.xcodeproj-aside
+            - run: xcodebuild -sdk iphonesimulator -destination 'platform=iOS Simulator,OS=<< parameters.iOS >>,name=<< parameters.device >>' -scheme MapboxNavigation build <<# parameters.test >>test <</ parameters.test >> <<# parameters.codecoverage >>-enableCodeCoverage YES<</ parameters.codecoverage >>
+            - run: mv MapboxNavigation.xcodeproj-aside MapboxNavigation.xcodeproj
       - when:
           condition: << parameters.codecoverage >>
           steps:
             - run: bash <(curl -s https://codecov.io/bash)
-      - run:
-          name: MapboxNavigation
-          command: xcodebuild -sdk iphonesimulator -destination 'platform=iOS Simulator,OS=<< parameters.iOS >>,name=<< parameters.device >>' -project MapboxNavigation.xcodeproj -scheme MapboxNavigation clean build <<# parameters.test >>test <</ parameters.test >> <<# parameters.codecoverage >>-enableCodeCoverage YES<</ parameters.codecoverage >> 
       - when:
-          condition: << parameters.codecoverage >>
+          condition:
+            not: << parameters.spm >>
           steps:
-            - run: bash <(curl -s https://codecov.io/bash)
+            - run:
+                name: MapboxNavigation
+                command: xcodebuild -sdk iphonesimulator -destination 'platform=iOS Simulator,OS=<< parameters.iOS >>,name=<< parameters.device >>' -project MapboxNavigation.xcodeproj -scheme MapboxNavigation clean build <<# parameters.test >>test <</ parameters.test >> <<# parameters.codecoverage >>-enableCodeCoverage YES<</ parameters.codecoverage >>
+            - when:
+                condition: << parameters.codecoverage >>
+                steps:
+                  - run: bash <(curl -s https://codecov.io/bash)
 
   xcode-11-examples:
     parameters:
       xcode:
         type: string
         default: "11.4.1"
+      spm:
+        type: boolean
+        default: false
     macos:
       xcode: << parameters.xcode >>
     environment:
@@ -238,10 +283,15 @@ workflows:
   workflow:
     jobs:
       - build-job:
-          name: "Xcode_12.0_iOS_14.0"
+          name: "Xcode_12.1_iOS_14.1"
+          xcode: "12.1.0"
+          iOS: "14.1"
+          device: "iPhone 8 Plus"
+      - build-job:
+          name: "Xcode_12.0_iOS_14.0_SPM"
           xcode: "12.0.0"
           iOS: "14.0"
-          test: false
+          spm: true
           device: "iPhone 8 Plus"
       - build-job:
           name: "Xcode_11.5_iOS_13.5"
@@ -252,7 +302,7 @@ workflows:
           name: "Xcode_11.4.1_iOS_12.2"
           xcode: "11.4.1"
           iOS: "12.2"
-          codecoverage: true
+          codecoverage: false
       - build-job:
           name: "Xcode_11.4.1_iOS_10.3.1"
           xcode: "11.4.1"

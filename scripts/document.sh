@@ -24,7 +24,7 @@ MINOR_VERSION=$( echo ${SHORT_VERSION} | grep -Eo '^\d+\.\d+' )
 DEFAULT_THEME="docs/theme"
 THEME=${JAZZY_THEME:-$DEFAULT_THEME}
 
-BASE_URL="https://docs.mapbox.com/ios/api"
+BASE_URL="https://docs.mapbox.com/ios"
 
 # Link to directions documentation
 DIRECTIONS_VERSION=$(grep 'mapbox-directions-swift' Cartfile.resolved | grep -oE '"v.+?"' | grep -oE '[^"v]+')
@@ -47,15 +47,15 @@ sed -n -e '/^## /{' -e ':a' -e 'n' -e '/^## /q' -e 'p' -e 'ba' -e '}' CHANGELOG.
 # Blow away any includes of MapboxCoreNavigation, because
 # MapboxNavigation-Documentation.podspec gloms the two targets into one.
 # https://github.com/mapbox/mapbox-navigation-ios/issues/2363
-find Mapbox{Core,}Navigation/ -name '*.swift' -exec \
+find Sources/Mapbox{Core,}Navigation/ -name '*.swift' -exec \
     perl -pi -e 's/\bMapboxCoreNavigation\b/MapboxNavigation/' {} \;
-find Mapbox{Core,}Navigation/ -name '*.[hm]' -exec \
+find Sources/Mapbox{Core,}Navigation/ -name '*.[hm]' -exec \
     perl -pi -e 's/([<"])MapboxCoreNavigation\b/$1MapboxNavigation/' {} \;
 
 # Blow away any platform-based availability attributes, since everything is
 # compatible enough to be documented.
 # https://github.com/mapbox/mapbox-navigation-ios/issues/1682
-find Mapbox{Core,}Navigation/ -name '*.swift' -exec \
+find Sources/Mapbox{Core,}Navigation/ -name '*.swift' -exec \
     perl -pi -e 's/\@available\s*\(\s*iOS \d+.\d,.*?\)//' {} \;
 
 jazzy \
@@ -66,13 +66,13 @@ jazzy \
     --github-file-prefix "https://github.com/mapbox/mapbox-navigation-ios/tree/${BRANCH}" \
     --readme ${README} \
     --documentation="docs/guides/*.md" \
-    --root-url "${BASE_URL}/navigation/${RELEASE_VERSION}/" \
+    --root-url "${BASE_URL}/navigation/api/${RELEASE_VERSION}/" \
     --theme ${THEME} \
     --output ${OUTPUT} \
     --module_version ${RELEASE_VERSION}
 
 REPLACE_REGEXP='s/MapboxNavigation\s+(Docs|Reference)/Mapbox Navigation SDK for iOS $1/, '
-REPLACE_REGEXP+="s/<span class=\"kt\">(${DIRECTIONS_SYMBOLS})<\/span>/<span class=\"kt\"><a href=\"${BASE_URL//\//\\/}\/directions\/${DIRECTIONS_VERSION}\/Classes\/\$1.html\">\$1<\/a><\/span>/, "
+REPLACE_REGEXP+="s/<span class=\"kt\">(${DIRECTIONS_SYMBOLS})<\/span>/<span class=\"kt\"><a href=\"${BASE_URL//\//\\/}\/directions\/api\/${DIRECTIONS_VERSION}\/Classes\/\$1.html\">\$1<\/a><\/span>/, "
 
 find ${OUTPUT} -name *.html -exec \
     perl -pi -e "$REPLACE_REGEXP" {} \;
