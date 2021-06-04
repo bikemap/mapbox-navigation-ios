@@ -107,6 +107,21 @@ open class LegacyRouteController: NSObject, Router, InternalRouter, CLLocationMa
     }
     
     public var location: CLLocation? {
+        // If user has disabled rerouting we will use raw location
+        // if it's more than 10 meters away from snapped location
+        if let rerouting = UserDefaults.standard.value(forKey: "BMDisableRerouting") as? Bool,
+           rerouting == false,
+           let loc = rawLocation,
+           let snapped = snappedLocation,
+           loc.distance(from: snapped) > 10 {
+          #if !targetEnvironment(simulator)
+            if heading == nil {
+              return snappedLocation ?? rawLocation
+            }
+          #endif
+          let locationHeading: CLLocationDirection = heading?.trueHeading ?? 0.0
+          return CLLocation(coordinate: loc.coordinate, altitude: loc.altitude, horizontalAccuracy: loc.horizontalAccuracy, verticalAccuracy: loc.verticalAccuracy, course: locationHeading, speed: loc.speed, timestamp: loc.timestamp)
+        }
         // If there is no snapped location, and the rawLocation course is unqualified, use the user's heading as long as it is accurate.
         if snappedLocation == nil,
             let heading = heading,
